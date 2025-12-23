@@ -32,8 +32,8 @@ String program[MAX_LINES];
 int programSize = 0;
 int ip = 0;
 
-enum ExecState { IDLE, LOADING, RUNNING };
-ExecState state = IDLE;
+enum ExecState { REPL, LOADING, RUNNING };
+ExecState state = REPL;
 
 /* ================= VARIABLES ================= */
 
@@ -126,6 +126,19 @@ void setVar(const String& name, long val) {
   }
 }
 
+void printToken(const String& t)
+{
+  // String literal
+  if (t.startsWith("\"") && t.endsWith("\"") && t.length() >= 2) {
+    Serial.print(t.substring(1, t.length() - 1));
+    return;
+  }
+
+  // Number or variable
+  Serial.print(resolve(t));
+}
+
+
 void setRGBColor(int pin, const char* color) {
   if      (!strcmp(color, "red"))     rgbLedWrite(pin, 255, 0, 0);
   else if (!strcmp(color, "green"))   rgbLedWrite(pin, 0, 255, 0);
@@ -203,6 +216,8 @@ bool executeLine(const String& line) {
     if (ifTop >= 0) {
       LOGI("END IF");
       ifTop--;
+    } else {
+      LOGE("END without IF");
     }
     return true;
   }
@@ -249,6 +264,45 @@ bool executeLine(const String& line) {
   if (t[0] == "set") {
     setVar(t[1], resolve(t[2]));
   }
+
+  /* PRINT */
+  else if (t[0] == "print")
+  {
+    if (n < 2) {
+      Serial.println();
+      return true;
+    }
+
+    for (int i = 1; i < n; i++) {
+      printToken(t[i]);
+      if (i < n - 1) Serial.print(" ");
+    }
+    Serial.println();
+  }
+
+
+  /* INC */
+  else if (t[0] == "inc")
+  {
+    if (n < 2) {
+      LOGE("inc: missing variable name");
+      return true;
+    }
+
+    long increment = 1;   // default
+
+    if (n >= 3) {
+      increment = resolve(t[2]);  // supports negative & variables
+    }
+
+    long v = getVar(t[1]);
+    setVar(t[1], v + increment);
+
+    LOGI("inc " + t[1] + " by " + String(increment) +
+         " -> " + String(v + increment));
+  }
+
+
   else if (t[0] == "delay")
   {
     return handleDelay(resolve(t[1]));
@@ -270,7 +324,7 @@ void runProgram() {
 
   if (ip >= programSize) {
     LOGI("program finished");
-    state = IDLE;
+    state = REPL;
     return;
   }
 
@@ -290,13 +344,13 @@ void handleSerial() {
     if (c == '\n') {
       line.trim();
 
-      if (line == "begin") {
+      if (line == "load") {
         programSize = 0;
         state = LOADING;
-        LOGI("loading started");
+        LOGI("program loading started");
       }
       else if (line == "endprog") {
-        state = IDLE;
+        state = REPL;
         LOGI("loading finished");
       }
       else if (line == "run") {
@@ -310,6 +364,14 @@ void handleSerial() {
           LOGD("buffered line " + String(programSize - 1));
           LOGD("with " + line);
         }
+        else {
+          LOGE("program buffer full");
+        }
+      }
+
+      else if (state == REPL) {
+        LOGI("REPL exec: " + line);
+        executeLine(line);
       }
 
       line = "";
