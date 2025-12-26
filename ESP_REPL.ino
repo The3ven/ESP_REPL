@@ -83,6 +83,81 @@ long waitMs = 0;
 
 /* ================= UTILITIES ================= */
 
+void showHelpGeneral()
+{
+  Serial.println("Available commands:");
+  Serial.println("  help [command]           - show help");
+  Serial.println("  set <var> <value>        - set variable");
+  Serial.println("  inc <var> [n]            - increment variable");
+  Serial.println("  print <args...>          - print values or strings");
+  Serial.println("  if <a> <op> <b>          - conditional block");
+  Serial.println("  else                     - else block");
+  Serial.println("  end                      - end if");
+  Serial.println("  while <a> <op> <b>       - loop");
+  Serial.println("  endw                     - end while");
+  Serial.println("  delay <ms>               - non-blocking delay");
+  Serial.println("  rgb <pin> <color>        - set RGB LED");
+}
+
+void showHelpCommand(const String& cmd)
+{
+  if (cmd == "set") {
+    Serial.println("set <var> <value>");
+    Serial.println("  Creates or updates a variable.");
+    Serial.println("  Example: set x 10");
+  }
+  else if (cmd == "inc") {
+    Serial.println("inc <var> [n]");
+    Serial.println("  Increments variable by n (default = 1).");
+    Serial.println("  Example: inc x 5");
+  }
+  else if (cmd == "print") {
+    Serial.println("print <args...>");
+    Serial.println("  Prints variables, numbers, or strings.");
+    Serial.println("  Example: print \"value is\" x");
+  }
+  else if (cmd == "if") {
+    Serial.println("if <a> <op> <b>");
+    Serial.println("  Conditional execution block.");
+    Serial.println("  Operators: == != < > <= >=");
+    Serial.println("  Must be closed with 'end'.");
+  }
+  else if (cmd == "while") {
+    Serial.println("while <a> <op> <b>");
+    Serial.println("  Loop while condition is true.");
+    Serial.println("  Must be closed with 'endw'.");
+  }
+  else if (cmd == "delay") {
+    Serial.println("delay <ms>");
+    Serial.println("  Non-blocking delay in milliseconds.");
+  }
+  else if (cmd == "rgb") {
+    Serial.println("rgb <pin> <color>");
+    Serial.println("  Set RGB LED color.");
+    Serial.println("  Colors: red green blue yellow cyan magenta white");
+  }
+  else if (cmd == "help") {
+    Serial.println("help [command]");
+    Serial.println("  Show general help or help for a command.");
+  }
+  else {
+    Serial.print("No help available for command: ");
+    Serial.println(cmd);
+  }
+}
+
+long evalMath(const String& a, const String& op, const String& b)
+{
+  long x = resolve(a);
+  long y = resolve(b);
+  if (op == "+") return x + y;
+  if (op == "-") return x - y;
+  if (op == "*") return x * y;
+  if (op == "/") return y != 0 ? x / y : 0;
+  LOGE("unknown math op: " + op);
+  return 0;
+}
+
 int tokenize(String line, String out[], int maxT)
 {
   LOGD("tokenize input: " + line);
@@ -353,10 +428,26 @@ bool executeLine(const String &line)
     return true;
   }
 
+  /* HELP */
+  if (t[0] == "help")
+  {
+    if (n == 1) {
+      showHelpGeneral();
+    } else {
+      showHelpCommand(t[1]);
+    }
+    return true;
+  }
+
   /* COMMANDS */
   if (t[0] == "set")
   {
     setVar(t[1], resolve(t[2]));
+  }
+
+  else if (t[0] == "math")
+  {
+    LOGI("math result = " + String(evalMath(t[1], t[2], t[3])));
   }
 
   else if (t[0] == "get")
